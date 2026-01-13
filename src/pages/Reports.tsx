@@ -18,7 +18,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const COLORS = ['hsl(221, 83%, 53%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(280, 65%, 60%)', 'hsl(340, 75%, 55%)'];
 
 const Reports: React.FC = () => {
-  const { products, invoices, importRecords, stats } = useInventory();
+  const { products, invoices, imports, stats } = useInventory();
 
   // Calculate revenue
   const totalRevenue = invoices
@@ -26,7 +26,7 @@ const Reports: React.FC = () => {
     .reduce((sum, inv) => sum + inv.totalAmount, 0);
 
   // Calculate cost
-  const totalCost = importRecords.reduce((sum, r) => sum + r.totalAmount, 0);
+  const totalCost = imports.reduce((sum, r) => sum + r.totalAmount, 0);
 
   // Profit
   const profit = totalRevenue - totalCost;
@@ -166,10 +166,10 @@ const Reports: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`} className="text-xs" />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px'
                     }}
@@ -205,10 +205,10 @@ const Reports: React.FC = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px'
                     }}

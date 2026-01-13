@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, ShoppingCart, Calculator } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
+import InvoicePrint from '@/components/InvoicePrint';
 import { formatCurrency, generateCode } from '@/utils/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +30,7 @@ import { InvoiceItem } from '@/types/inventory';
 const paymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Thẻ tín dụng', 'Ví điện tử'];
 
 const Sales: React.FC = () => {
-  const { products, invoices, addInvoice } = useInventory();
+  const { products, invoices, addInvoice, customers, settings } = useInventory();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -39,6 +40,36 @@ const Sales: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('Tiền mặt');
   const [notes, setNotes] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
+  const [printingInvoice, setPrintingInvoice] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (settings) {
+      setVat(settings.defaultVat);
+    }
+  }, [settings]);
+
+  const handleCustomerChange = (id: string) => {
+    setSelectedCustomerId(id);
+    if (id === 'walk-in') {
+      setCustomerName('');
+      setCustomerPhone('');
+    } else {
+      const customer = customers.find(c => c.id === id);
+      if (customer) {
+        setCustomerName(customer.name);
+        setCustomerPhone(customer.phone);
+      }
+    }
+  };
+
+  const handlePrint = (invoice: any) => {
+    setPrintingInvoice(invoice);
+    setTimeout(() => {
+      window.print();
+      setPrintingInvoice(null);
+    }, 100);
+  };
 
   const addItem = () => {
     if (!selectedProductId) {
@@ -55,8 +86,8 @@ const Sales: React.FC = () => {
         toast.error('Số lượng vượt quá tồn kho');
         return;
       }
-      setItems(items.map(i => 
-        i.productId === selectedProductId 
+      setItems(items.map(i =>
+        i.productId === selectedProductId
           ? { ...i, quantity: i.quantity + 1, amount: (i.quantity + 1) * i.unitPrice }
           : i
       ));
@@ -88,8 +119,8 @@ const Sales: React.FC = () => {
       removeItem(productId);
       return;
     }
-    setItems(items.map(i => 
-      i.productId === productId 
+    setItems(items.map(i =>
+      i.productId === productId
         ? { ...i, quantity, amount: quantity * i.unitPrice - i.discount }
         : i
     ));
@@ -103,40 +134,49 @@ const Sales: React.FC = () => {
   const vatAmount = subtotal * (vat / 100);
   const totalAmount = subtotal + vatAmount + shippingCost - discount;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (items.length === 0) {
       toast.error('Vui lòng thêm sản phẩm vào hóa đơn');
       return;
     }
 
-    const invoiceCode = generateCode('HD', invoices.map(i => i.code));
+    try {
+      const invoiceCode = generateCode('HD', invoices.map(i => i.code));
 
-    addInvoice({
-      code: invoiceCode,
-      customerName: customerName || 'Khách lẻ',
-      customerPhone,
-      items,
-      subtotal,
-      vat,
-      vatAmount,
-      shippingCost,
-      discount,
-      totalAmount,
-      paymentMethod,
-      status: 'completed',
-      notes,
-      invoiceDate: new Date(),
-    });
+      const newInvoice = await addInvoice({
+        code: invoiceCode,
+        customerId: selectedCustomerId === 'walk-in' ? undefined : selectedCustomerId,
+        customerName: customerName || 'Khách lẻ',
+        customerPhone,
+        items,
+        subtotal,
+        vat,
+        vatAmount,
+        shippingCost,
+        discount,
+        totalAmount,
+        paymentMethod,
+        status: 'completed',
+        notes,
+        invoiceDate: new Date(),
+      });
 
-    toast.success(`Tạo hóa đơn ${invoiceCode} thành công!`);
-    
-    // Reset form
-    setItems([]);
-    setCustomerName('');
-    setCustomerPhone('');
-    setShippingCost(0);
-    setDiscount(0);
-    setNotes('');
+      toast.success(`Tạo hóa đơn ${invoiceCode} thành công!`);
+
+      // Auto print after creation
+      handlePrint(newInvoice);
+
+      // Reset form
+      setItems([]);
+      setSelectedCustomerId('walk-in');
+      setCustomerName('');
+      setCustomerPhone('');
+      setShippingCost(0);
+      setDiscount(0);
+      setNotes('');
+    } catch (error: any) {
+      toast.error('Lỗi khi tạo hóa đơn: ' + error.message);
+    }
   };
 
   return (
@@ -265,11 +305,28 @@ const Sales: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
+                  <Label className="input-label">Chọn khách hàng</Label>
+                  <Select value={selectedCustomerId} onValueChange={handleCustomerChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn khách hàng..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="walk-in">Khách lẻ / Khách mới</SelectItem>
+                      {customers.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.code} - {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label className="input-label">Tên khách hàng</Label>
                   <Input
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Khách lẻ"
+                    placeholder="Tên khách hàng"
+                    disabled={selectedCustomerId !== 'walk-in'}
                   />
                 </div>
                 <div>
@@ -278,6 +335,7 @@ const Sales: React.FC = () => {
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="0901234567"
+                    disabled={selectedCustomerId !== 'walk-in'}
                   />
                 </div>
               </CardContent>
@@ -355,8 +413,8 @@ const Sales: React.FC = () => {
                     rows={2}
                   />
                 </div>
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   size="lg"
                   onClick={handleSubmit}
                   disabled={items.length === 0}
@@ -368,6 +426,12 @@ const Sales: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {printingInvoice && (
+        <div style={{ position: 'fixed', left: 0, top: 0, width: '100%', zIndex: -9999 }}>
+          <InvoicePrint invoice={printingInvoice} settings={settings} />
+        </div>
+      )}
     </MainLayout>
   );
 };

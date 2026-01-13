@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Search, FileText, Eye, CheckCircle, XCircle, Clock } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, FileText, Eye, CheckCircle, XCircle, Clock, Printer, Download, ScrollText } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
+import InvoicePOSPrint from '@/components/InvoicePOSPrint';
+import InvoicePrint from '@/components/InvoicePrint';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,18 +32,77 @@ const statusConfig = {
 };
 
 const Invoices: React.FC = () => {
-  const { invoices, updateInvoiceStatus } = useInventory();
+  const { invoices, updateInvoiceStatus, settings } = useInventory();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [printingInvoice, setPrintingInvoice] = useState<Invoice | null>(null);
+  const [posPrintingInvoice, setPosPrintingInvoice] = useState<Invoice | null>(null);
 
   const filteredInvoices = invoices.filter(
     inv => inv.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           inv.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+      inv.customerName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalRevenue = invoices
     .filter(inv => inv.status === 'completed')
     .reduce((sum, inv) => sum + inv.totalAmount, 0);
+
+  const handlePrint = (invoice: Invoice) => {
+    setPrintingInvoice(invoice);
+    // Use setTimeout to ensure the printing content is rendered before window.print()
+    setTimeout(() => {
+      window.print();
+      setPrintingInvoice(null);
+    }, 100);
+  };
+
+  const handleExportPDF = async (invoice: Invoice) => {
+    setPrintingInvoice(invoice);
+
+    // Wait for the component to render
+    setTimeout(async () => {
+      const element = document.querySelector('.print-content') as HTMLElement | null;
+      if (element) {
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+          margin: 10,
+          filename: `HoaDon_${invoice.code}.pdf`,
+          image: { type: 'jpeg' as const, quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+        };
+
+        // Generate PDF and open in new browser tab
+        const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, '_blank');
+      }
+      setPrintingInvoice(null);
+    }, 200);
+  };
+
+  const handleExportPOS = async (invoice: Invoice) => {
+    setPosPrintingInvoice(invoice);
+
+    setTimeout(async () => {
+      const element = document.querySelector('.pos-print-content') as HTMLElement | null;
+      if (element) {
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+          margin: 0,
+          filename: `HoaDon_POS_${invoice.code}.pdf`,
+          image: { type: 'jpeg' as const, quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 350 },
+          jsPDF: { unit: 'mm' as const, format: [58, 200] as [number, number], orientation: 'portrait' as const }
+        };
+
+        const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, '_blank');
+      }
+      setPosPrintingInvoice(null);
+    }, 200);
+  };
 
   return (
     <MainLayout>
@@ -146,11 +207,39 @@ const Invoices: React.FC = () => {
                           {status.label}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                          onClick={() => handleExportPOS(invoice)}
+                          title="Xuất Bill POS"
+                        >
+                          <ScrollText className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={() => handleExportPDF(invoice)}
+                          title="Xuất PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => handlePrint(invoice)}
+                          title="In hóa đơn"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
                           onClick={() => setSelectedInvoice(invoice)}
+                          title="Xem chi tiết"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -173,8 +262,48 @@ const Invoices: React.FC = () => {
         {/* Invoice Detail Dialog */}
         <Dialog open={!!selectedInvoice} onOpenChange={() => setSelectedInvoice(null)}>
           <DialogContent className="max-w-2xl">
-            <DialogHeader>
+            <DialogHeader className="flex flex-row items-center justify-between">
               <DialogTitle>Chi tiết hóa đơn {selectedInvoice?.code}</DialogTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                  onClick={() => selectedInvoice && handleExportPOS(selectedInvoice)}
+                >
+                  <ScrollText className="w-4 h-4 mr-2" />
+                  Bill POS
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-200"
+                  onClick={() => selectedInvoice && handleExportPOS(selectedInvoice)}
+                >
+                  <ScrollText className="w-4 h-4 mr-2" />
+                  Bill POS
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                  onClick={() => selectedInvoice && handleExportPDF(selectedInvoice)}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Xuất PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => selectedInvoice && handlePrint(selectedInvoice)}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  In hóa đơn
+                </Button>
+              </div>
             </DialogHeader>
             {selectedInvoice && (
               <div className="space-y-6">
@@ -261,6 +390,19 @@ const Invoices: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Printing visible container (only when printingInvoice is set) */}
+      {printingInvoice && (
+        <div style={{ position: 'fixed', left: 0, top: 0, width: '100%', zIndex: -9999 }}>
+          <InvoicePrint invoice={printingInvoice} settings={settings} />
+        </div>
+      )}
+
+      {posPrintingInvoice && (
+        <div style={{ position: 'fixed', left: 0, top: 0, width: '58mm', zIndex: -9999 }}>
+          <InvoicePOSPrint invoice={posPrintingInvoice} settings={settings} />
+        </div>
+      )}
     </MainLayout>
   );
 };

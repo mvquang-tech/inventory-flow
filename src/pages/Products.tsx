@@ -37,7 +37,7 @@ const categories = ['Điện tử', 'Điện thoại', 'Phụ kiện', 'Gia dụ
 const units = ['Cái', 'Hộp', 'Bộ', 'Kg', 'Lít', 'Mét'];
 
 const Products: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct } = useInventory();
+  const { products, suppliers, addProduct, updateProduct, deleteProduct } = useInventory();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -50,11 +50,12 @@ const Products: React.FC = () => {
     sellingPrice: 0,
     stock: 0,
     minStock: 5,
+    supplierId: '',
   });
 
   const filteredProducts = products.filter(
     p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         p.code.toLowerCase().includes(searchTerm.toLowerCase())
+      p.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const resetForm = () => {
@@ -68,6 +69,7 @@ const Products: React.FC = () => {
       sellingPrice: 0,
       stock: 0,
       minStock: 5,
+      supplierId: '',
     });
     setEditingProduct(null);
   };
@@ -84,6 +86,7 @@ const Products: React.FC = () => {
         sellingPrice: product.sellingPrice,
         stock: product.stock,
         minStock: product.minStock,
+        supplierId: product.supplierId || '',
       });
     } else {
       resetForm();
@@ -91,30 +94,41 @@ const Products: React.FC = () => {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       toast.error('Vui lòng nhập tên sản phẩm');
       return;
     }
 
-    if (editingProduct) {
-      updateProduct(editingProduct.id, formData);
-      toast.success('Cập nhật sản phẩm thành công');
-    } else {
-      addProduct(formData);
-      toast.success('Thêm sản phẩm thành công');
+    try {
+      const dataToSave = {
+        ...formData,
+        supplierId: formData.supplierId === 'none' ? undefined : formData.supplierId
+      };
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, dataToSave);
+        toast.success('Cập nhật sản phẩm thành công');
+      } else {
+        await addProduct(dataToSave);
+        toast.success('Thêm sản phẩm thành công');
+      }
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast.error('Lỗi: ' + error.message);
     }
-    
-    setIsDialogOpen(false);
-    resetForm();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Bạn có chắc muốn xóa sản phẩm này?')) {
-      deleteProduct(id);
-      toast.success('Xóa sản phẩm thành công');
+      try {
+        await deleteProduct(id);
+        toast.success('Xóa sản phẩm thành công');
+      } catch (error: any) {
+        toast.error('Lỗi khi xóa: ' + error.message);
+      }
     }
   };
 
@@ -221,6 +235,20 @@ const Products: React.FC = () => {
                       placeholder="5"
                     />
                   </div>
+                  <div className="col-span-2">
+                    <Label className="input-label">Nhà cung cấp</Label>
+                    <Select value={formData.supplierId} onValueChange={(v) => setFormData({ ...formData, supplierId: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn nhà cung cấp" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Không có</SelectItem>
+                        {suppliers.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -259,6 +287,7 @@ const Products: React.FC = () => {
                   <TableHead>Mã SP</TableHead>
                   <TableHead>Tên sản phẩm</TableHead>
                   <TableHead>Danh mục</TableHead>
+                  <TableHead>Nhà cung cấp</TableHead>
                   <TableHead className="text-right">Giá nhập</TableHead>
                   <TableHead className="text-right">Giá bán</TableHead>
                   <TableHead className="text-center">Tồn kho</TableHead>
@@ -280,6 +309,9 @@ const Products: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{product.category}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm">{product.supplierName || '-'}</p>
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(product.importPrice)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(product.sellingPrice)}</TableCell>
@@ -314,7 +346,7 @@ const Products: React.FC = () => {
                 ))}
                 {filteredProducts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Không tìm thấy sản phẩm nào
                     </TableCell>
                   </TableRow>

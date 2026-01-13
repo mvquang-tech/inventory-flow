@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 const Dashboard: React.FC = () => {
-  const { products, invoices, importRecords, stats } = useInventory();
+  const { products, invoices, imports, stats } = useInventory();
 
   const todaySales = invoices
     .filter(inv => {
@@ -19,11 +19,11 @@ const Dashboard: React.FC = () => {
     .reduce((sum, inv) => sum + inv.totalAmount, 0);
 
   const lowStockProducts = products.filter(p => p.stock < p.minStock);
-  const recentInvoices = [...invoices].sort((a, b) => 
+  const recentInvoices = [...invoices].sort((a, b) =>
     new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime()
   ).slice(0, 5);
 
-  const recentImports = [...importRecords].sort((a, b) => 
+  const recentImports = [...imports].sort((a, b) =>
     new Date(b.importDate).getTime() - new Date(a.importDate).getTime()
   ).slice(0, 5);
 
@@ -110,20 +110,20 @@ const Dashboard: React.FC = () => {
             <CardContent>
               {recentImports.length > 0 ? (
                 <div className="space-y-4">
-                  {recentImports.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  {recentImports.map((imp) => (
+                    <div key={imp.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
                           <ArrowDownRight className="w-5 h-5 text-warning" />
                         </div>
                         <div>
-                          <p className="font-medium">{record.productName}</p>
-                          <p className="text-sm text-muted-foreground">{record.supplierName}</p>
+                          <p className="font-medium">{imp.code}</p>
+                          <p className="text-sm text-muted-foreground">{imp.supplierName} ({imp.items.length} mặt hàng)</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(record.totalAmount)}</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(record.importDate)}</p>
+                        <p className="font-semibold">{formatCurrency(imp.totalAmount)}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(imp.importDate)}</p>
                       </div>
                     </div>
                   ))}

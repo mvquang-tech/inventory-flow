@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Truck, Phone, Mail, MapPin } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
@@ -17,8 +18,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Supplier } from '@/types/inventory';
+import { History } from 'lucide-react';
 
 const Suppliers: React.FC = () => {
+  const navigate = useNavigate();
   const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useInventory();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -33,7 +36,7 @@ const Suppliers: React.FC = () => {
 
   const filteredSuppliers = suppliers.filter(
     s => s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         s.code.toLowerCase().includes(searchTerm.toLowerCase())
+      s.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const resetForm = () => {
@@ -46,6 +49,10 @@ const Suppliers: React.FC = () => {
       address: '',
     });
     setEditingSupplier(null);
+  };
+
+  const handleOpenHistory = (supplier: Supplier) => {
+    navigate(`/suppliers/${supplier.id}/history`);
   };
 
   const handleOpenDialog = (supplier?: Supplier) => {
@@ -64,30 +71,37 @@ const Suppliers: React.FC = () => {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       toast.error('Vui lòng nhập tên nhà cung cấp');
       return;
     }
 
-    if (editingSupplier) {
-      updateSupplier(editingSupplier.id, formData);
-      toast.success('Cập nhật nhà cung cấp thành công');
-    } else {
-      addSupplier(formData);
-      toast.success('Thêm nhà cung cấp thành công');
+    try {
+      if (editingSupplier) {
+        await updateSupplier(editingSupplier.id, formData);
+        toast.success('Cập nhật nhà cung cấp thành công');
+      } else {
+        await addSupplier(formData);
+        toast.success('Thêm nhà cung cấp thành công');
+      }
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast.error('Lỗi: ' + error.message);
     }
-    
-    setIsDialogOpen(false);
-    resetForm();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Bạn có chắc muốn xóa nhà cung cấp này?')) {
-      deleteSupplier(id);
-      toast.success('Xóa nhà cung cấp thành công');
+      try {
+        await deleteSupplier(id);
+        toast.success('Xóa nhà cung cấp thành công');
+      } catch (error: any) {
+        toast.error('Lỗi khi xóa: ' + error.message);
+      }
     }
   };
 
@@ -204,6 +218,15 @@ const Suppliers: React.FC = () => {
                     <Button
                       size="icon"
                       variant="ghost"
+                      className="text-primary hover:text-primary hover:bg-primary/5"
+                      onClick={() => handleOpenHistory(supplier)}
+                      title="Xem lịch sử nhập hàng"
+                    >
+                      <History className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       onClick={() => handleOpenDialog(supplier)}
                     >
                       <Edit className="w-4 h-4" />
@@ -218,18 +241,23 @@ const Suppliers: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="w-4 h-4" />
-                    <span>{supplier.phone || '-'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="w-4 h-4" />
-                    <span>{supplier.email || '-'}</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-muted-foreground">
-                    <MapPin className="w-4 h-4 mt-0.5" />
-                    <span>{supplier.address || '-'}</span>
+                <div
+                  className="cursor-pointer"
+                  onClick={() => handleOpenHistory(supplier)}
+                >
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Phone className="w-4 h-4" />
+                      <span>{supplier.phone || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Mail className="w-4 h-4" />
+                      <span>{supplier.email || '-'}</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-muted-foreground">
+                      <MapPin className="w-4 h-4 mt-0.5" />
+                      <span>{supplier.address || '-'}</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>

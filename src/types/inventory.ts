@@ -8,6 +8,8 @@ export interface Product {
   sellingPrice: number;
   stock: number;
   minStock: number;
+  supplierId?: string;
+  supplierName?: string;
   createdAt: Date;
 }
 
@@ -21,16 +23,34 @@ export interface Supplier {
   createdAt: Date;
 }
 
-export interface ImportRecord {
+export interface Customer {
   id: string;
+  code: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  createdAt: Date;
+}
+
+export interface ImportItem {
+  id: string;
+  importId: string;
   productId: string;
   productCode: string;
   productName: string;
   quantity: number;
   unitPrice: number;
-  totalAmount: number;
+  amount: number;
+}
+
+export interface Import {
+  id: string;
+  code: string;
   supplierId: string;
   supplierName: string;
+  items: ImportItem[];
+  totalAmount: number;
   importDate: Date;
   notes: string;
   createdAt: Date;
@@ -49,6 +69,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string;
   code: string;
+  customerId?: string;
   customerName: string;
   customerPhone: string;
   items: InvoiceItem[];
@@ -70,4 +91,20 @@ export interface InventoryStats {
   totalStock: number;
   totalValue: number;
   lowStockCount: number;
+}
+
+export interface StoreSettings {
+  id: string;
+  name: string;
+  phone: string;
+  taxCode?: string;
+  address: string;
+  bankAccount?: string;
+  bankName?: string;
+  facebook?: string;
+  zalo?: string;
+  website?: string;
+  defaultVat: number;
+  logoUrl?: string;
+  updatedAt: Date;
 }

@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
-  FileText, 
-  Users, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  FileText,
+  Users,
+  BarChart3,
   Settings,
   Truck,
   PackagePlus
@@ -17,6 +17,7 @@ const menuItems = [
   { icon: Package, label: 'Sản phẩm', path: '/products' },
   { icon: PackagePlus, label: 'Nhập hàng', path: '/import' },
   { icon: ShoppingCart, label: 'Bán hàng', path: '/sales' },
+  { icon: Users, label: 'Khách hàng', path: '/customers' },
   { icon: FileText, label: 'Hóa đơn', path: '/invoices' },
   { icon: Truck, label: 'Nhà cung cấp', path: '/suppliers' },
   { icon: BarChart3, label: 'Báo cáo', path: '/reports' },

@@ -135,3 +135,54 @@
     @apply bg-gradient-to-r from-primary to-primary/80;
   }
 }
+
+/* Print Styles */
+@media print {
+
+  /* Hide the main app content */
+  body>#root>* {
+    display: none !important;
+  }
+
+  /* Show only the print container */
+  body>#root>div[style*="position: fixed"] {
+    display: block !important;
+    position: static !important;
+    z-index: auto !important;
+  }
+
+  /* Make print content visible and properly positioned */
+  .print-content {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 15mm;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+    font-size: 12pt;
+  }
+
+  .print-content * {
+    visibility: visible !important;
+  }
+
+  /* Reset body for print */
+  body {
+    background: white !important;
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Page settings */
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}
