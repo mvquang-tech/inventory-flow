@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Users, Phone, Mail, MapPin, History } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, Phone, Mail, MapPin, History, Upload, Download, FileSpreadsheet, Info } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
 import { generateCode } from '@/utils/format';
@@ -11,10 +12,17 @@ import { Textarea } from '@/components/ui/textarea';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Customer } from '@/types/inventory';
@@ -32,6 +40,8 @@ const Customers: React.FC = () => {
         email: '',
         address: '',
     });
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [importing, setImporting] = useState(false);
 
     const filteredCustomers = customers.filter(
         c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -109,6 +119,101 @@ const Customers: React.FC = () => {
         navigate(`/customers/${customer.id}/history`);
     };
 
+    const handleExportExcel = () => {
+        try {
+            const dataToExport = customers.map(c => ({
+                'Mã KH': c.code,
+                'Tên khách hàng': c.name,
+                'Số điện thoại': c.phone,
+                'Email': c.email || '',
+                'Địa chỉ': c.address || '',
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "KhachHang");
+            XLSX.writeFile(wb, "DanhSachKhachHang.xlsx");
+            toast.success('Xuất file Excel thành công');
+        } catch (error: any) {
+            toast.error('Lỗi xuất file: ' + error.message);
+        }
+    };
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImporting(true);
+        const reader = new FileReader();
+
+        reader.onload = async (event) => {
+            try {
+                const bstr = event.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json<any>(ws);
+
+                if (data.length === 0) {
+                    toast.error('File không có dữ liệu');
+                    setImporting(false);
+                    return;
+                }
+
+                let successCount = 0;
+                let errorCount = 0;
+
+                for (const item of data) {
+                    // Try to map various column names
+                    const name = item['Tên khách hàng'] || item['Name'] || item['Ho ten'] || item['Họ tên'];
+                    const phone = item['Số điện thoại'] || item['Phone'] || item['SDT'] || item['SĐT'];
+                    const email = item['Email'] || item['Thu dien tu'];
+                    const address = item['Địa chỉ'] || item['Address'] || item['Dia chi'];
+                    const code = item['Mã KH'] || item['Code'] || item['Ma KH'];
+
+                    if (!name || !phone) {
+                        errorCount++;
+                        continue;
+                    }
+
+                    // Check if exists by phone or code (if provided)
+                    const exists = customers.some(c => c.phone === phone || (code && c.code === code));
+                    if (exists) {
+                        errorCount++; // Skip duplicates strictly for now, or could update
+                        continue;
+                    }
+
+                    try {
+                        await addCustomer({
+                            code: code || generateCode('KH', customers.map(c => c.code)), // Generate if missing
+                            name: String(name),
+                            phone: String(phone),
+                            email: email ? String(email) : '',
+                            address: address ? String(address) : '',
+                        });
+                        successCount++;
+                    } catch (err) {
+                        console.error('Error adding customer:', err);
+                        errorCount++;
+                    }
+                }
+
+                toast.success(`Nhập thành công ${successCount} khách hàng. Bỏ qua/Lỗi: ${errorCount}`);
+            } catch (error: any) {
+                toast.error('Lỗi đọc file: ' + error.message);
+            } finally {
+                setImporting(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+
+        reader.readAsBinaryString(file);
+    };
+
     return (
         <MainLayout>
             <div className="space-y-6">
@@ -118,76 +223,110 @@ const Customers: React.FC = () => {
                         <h1 className="text-3xl font-bold text-foreground">Khách hàng</h1>
                         <p className="text-muted-foreground mt-1">Quản lý cơ sở dữ liệu khách hàng</p>
                     </div>
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button onClick={() => handleOpenDialog()} className="gap-2">
-                                <Plus className="w-4 h-4" />
-                                Thêm khách hàng
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>
-                                    {editingCustomer ? 'Cập nhật khách hàng' : 'Thêm khách hàng mới'}
-                                </DialogTitle>
-                            </DialogHeader>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex gap-2">
+                        <Input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            ref={fileInputRef}
+                            onChange={handleImportExcel}
+                        />
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="outline" size="icon" className="text-muted-foreground">
+                                        <Info className="w-4 h-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                    <p className="font-semibold mb-1">Hướng dẫn nhập file:</p>
+                                    <ul className="list-disc pl-4 text-xs space-y-1">
+                                        <li>Định dạng file: .xlsx, .xls</li>
+                                        <li>Cột bắt buộc: <strong>Tên khách hàng, Số điện thoại</strong></li>
+                                        <li>Cột tùy chọn: Mã KH, Email, Địa chỉ</li>
+                                    </ul>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <Button variant="outline" onClick={handleImportClick} disabled={importing} className="gap-2">
+                            <Upload className="w-4 h-4" />
+                            {importing ? 'Đang nhập...' : 'Nhập Excel'}
+                        </Button>
+                        <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+                            <Download className="w-4 h-4" />
+                            Xuất Excel
+                        </Button>
+                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={() => handleOpenDialog()} className="gap-2">
+                                    <Plus className="w-4 h-4" />
+                                    Thêm khách hàng
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>
+                                        {editingCustomer ? 'Cập nhật khách hàng' : 'Thêm khách hàng mới'}
+                                    </DialogTitle>
+                                </DialogHeader>
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <Label className="input-label">Mã khách hàng</Label>
+                                            <Input
+                                                value={formData.code}
+                                                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                                placeholder="KH001"
+                                                disabled={!!editingCustomer}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="input-label">Số điện thoại</Label>
+                                            <Input
+                                                value={formData.phone}
+                                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                                placeholder="0901234567"
+                                            />
+                                        </div>
+                                    </div>
                                     <div>
-                                        <Label className="input-label">Mã khách hàng</Label>
+                                        <Label className="input-label">Tên khách hàng</Label>
                                         <Input
-                                            value={formData.code}
-                                            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                                            placeholder="KH001"
-                                            disabled={!!editingCustomer}
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            placeholder="Nguyễn Văn A"
                                         />
                                     </div>
                                     <div>
-                                        <Label className="input-label">Số điện thoại</Label>
+                                        <Label className="input-label">Email (không bắt buộc)</Label>
                                         <Input
-                                            value={formData.phone}
-                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                            placeholder="0901234567"
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            placeholder="nguyenvana@gmail.com"
                                         />
                                     </div>
-                                </div>
-                                <div>
-                                    <Label className="input-label">Tên khách hàng</Label>
-                                    <Input
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="Nguyễn Văn A"
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="input-label">Email (không bắt buộc)</Label>
-                                    <Input
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        placeholder="nguyenvana@gmail.com"
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="input-label">Địa chỉ (không bắt buộc)</Label>
-                                    <Textarea
-                                        value={formData.address}
-                                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                        placeholder="Số 123 Lê Lợi..."
-                                        rows={2}
-                                    />
-                                </div>
-                                <div className="flex justify-end gap-3 pt-4">
-                                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                                        Hủy
-                                    </Button>
-                                    <Button type="submit">
-                                        {editingCustomer ? 'Cập nhật' : 'Thêm mới'}
-                                    </Button>
-                                </div>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                                    <div>
+                                        <Label className="input-label">Địa chỉ (không bắt buộc)</Label>
+                                        <Textarea
+                                            value={formData.address}
+                                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                            placeholder="Số 123 Lê Lợi..."
+                                            rows={2}
+                                        />
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-4">
+                                        <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                            Hủy
+                                        </Button>
+                                        <Button type="submit">
+                                            {editingCustomer ? 'Cập nhật' : 'Thêm mới'}
+                                        </Button>
+                                    </div>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
 
                 {/* Search */}

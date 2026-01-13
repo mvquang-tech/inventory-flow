@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ShoppingCart, Calculator } from 'lucide-react';
+import { Plus, Trash2, ShoppingCart, Calculator, CheckCircle, ScrollText, Download, Printer } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
 import InvoicePrint from '@/components/InvoicePrint';
+import InvoicePOSPrint from '@/components/InvoicePOSPrint';
 import { formatCurrency, generateCode } from '@/utils/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -42,6 +49,9 @@ const Sales: React.FC = () => {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
   const [printingInvoice, setPrintingInvoice] = useState<any>(null);
+  const [posPrintingInvoice, setPosPrintingInvoice] = useState<any>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [lastSavedInvoice, setLastSavedInvoice] = useState<any>(null);
 
   React.useEffect(() => {
     if (settings) {
@@ -69,6 +79,41 @@ const Sales: React.FC = () => {
       window.print();
       setPrintingInvoice(null);
     }, 100);
+  };
+
+  const handleExportPOS = async (invoice: any) => {
+    setPosPrintingInvoice(invoice);
+
+    setTimeout(async () => {
+      const element = document.querySelector('.pos-print-content') as HTMLElement | null;
+      if (element) {
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+          margin: 0,
+          filename: `HoaDon_POS_${invoice.code}.pdf`,
+          image: { type: 'jpeg' as const, quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 350 },
+          jsPDF: { unit: 'mm' as const, format: [58, 200] as [number, number], orientation: 'portrait' as const }
+        };
+
+        const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, '_blank');
+      }
+      setPosPrintingInvoice(null);
+    }, 200);
+  };
+
+  const handleNewSale = () => {
+    setShowSuccessDialog(false);
+    setLastSavedInvoice(null);
+    setItems([]);
+    setSelectedCustomerId('walk-in');
+    setCustomerName('');
+    setCustomerPhone('');
+    setShippingCost(0);
+    setDiscount(0);
+    setNotes('');
   };
 
   const addItem = () => {
@@ -163,17 +208,11 @@ const Sales: React.FC = () => {
 
       toast.success(`Tạo hóa đơn ${invoiceCode} thành công!`);
 
-      // Auto print after creation
-      handlePrint(newInvoice);
+      // Show success dialog instead of auto print
+      setLastSavedInvoice(newInvoice);
+      setShowSuccessDialog(true);
 
-      // Reset form
-      setItems([]);
-      setSelectedCustomerId('walk-in');
-      setCustomerName('');
-      setCustomerPhone('');
-      setShippingCost(0);
-      setDiscount(0);
-      setNotes('');
+      // We don't clear form immediately here anymore, wait for "New Sale"
     } catch (error: any) {
       toast.error('Lỗi khi tạo hóa đơn: ' + error.message);
     }
@@ -432,6 +471,59 @@ const Sales: React.FC = () => {
           <InvoicePrint invoice={printingInvoice} settings={settings} />
         </div>
       )}
+
+      {posPrintingInvoice && (
+        <div style={{ position: 'fixed', left: 0, top: 0, width: '58mm', zIndex: -9999 }}>
+          <InvoicePOSPrint invoice={posPrintingInvoice} settings={settings} />
+        </div>
+      )}
+
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex flex-col items-center gap-2 text-center">
+              <CheckCircle className="w-12 h-12 text-green-500" />
+              <span className="text-xl">Thanh toán thành công!</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-center text-muted-foreground">
+              Hóa đơn <span className="font-semibold text-foreground">{lastSavedInvoice?.code}</span> đã được tạo.
+              <br />
+              Tổng tiền: <span className="font-bold text-foreground">{lastSavedInvoice && formatCurrency(lastSavedInvoice.totalAmount)}</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <Button
+                variant="outline"
+                className="w-full text-purple-600 border-purple-200 hover:bg-purple-50"
+                onClick={() => lastSavedInvoice && handleExportPOS(lastSavedInvoice)}
+              >
+                <ScrollText className="w-5 h-5 mr-2" />
+                In Bill POS (58mm)
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => lastSavedInvoice && handlePrint(lastSavedInvoice)}
+              >
+                <Printer className="w-5 h-5 mr-2" />
+                In Hóa đơn (A4/A5)
+              </Button>
+
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={handleNewSale}
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Bán đơn mới
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };

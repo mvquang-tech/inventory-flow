@@ -268,18 +268,6 @@ const Invoices: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                  onClick={() => selectedInvoice && handleExportPOS(selectedInvoice)}
-                >
-                  <ScrollText className="w-4 h-4 mr-2" />
-                  Bill POS
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                <Button
-                  variant="outline"
-                  size="sm"
                   className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-200"
                   onClick={() => selectedInvoice && handleExportPOS(selectedInvoice)}
                 >
