@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -37,7 +38,7 @@ import { InvoiceItem } from '@/types/inventory';
 const paymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Thẻ tín dụng', 'Ví điện tử'];
 
 const Sales: React.FC = () => {
-  const { products, invoices, addInvoice, customers, settings } = useInventory();
+  const { products, invoices, addInvoice, customers, addCustomer, settings } = useInventory();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -48,6 +49,15 @@ const Sales: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [showCustomerList, setShowCustomerList] = useState(false);
+
+  // New customer dialog states
+  const [isNewCustomerDialogOpen, setIsNewCustomerDialogOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [newCustomerAddress, setNewCustomerAddress] = useState('');
 
   // Searchable product select states
   const [productQuery, setProductQuery] = useState('');
@@ -65,6 +75,25 @@ const Sales: React.FC = () => {
     }
   }, [settings]);
 
+  const normalizePhone = (s: string) => (s || '').toString().replace(/\D/g, '');
+
+  const handleCustomerQueryChange = (value: string) => {
+    setCustomerQuery(value);
+    setShowCustomerList(true);
+
+    const digits = normalizePhone(value);
+    // Only auto-select when user types a full phone number (>= 10 digits) — use exact match
+    if (digits.length >= 10) {
+      const found = customers.find(c => normalizePhone(c.phone) === digits);
+      if (found) {
+        handleCustomerChange(found.id);
+        setCustomerQuery(`${found.code} - ${found.name} (${found.phone || '-'})`);
+        setShowCustomerList(false);
+        return;
+      }
+    }
+  };
+
   const handleCustomerChange = (id: string) => {
     setSelectedCustomerId(id);
     if (id === 'walk-in') {
@@ -76,6 +105,52 @@ const Sales: React.FC = () => {
         setCustomerName(customer.name);
         setCustomerPhone(customer.phone);
       }
+    }
+  }; 
+
+  const handleCreateCustomer = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newCustomerName.trim()) {
+      toast.error('Vui lòng nhập tên khách hàng');
+      return;
+    }
+    if (!newCustomerPhone.trim()) {
+      toast.error('Vui lòng nhập số điện thoại');
+      return;
+    }
+
+    try {
+      const newCode = generateCode('KH', customers.map(c => c.code));
+      const created = await addCustomer({
+        code: newCode,
+        name: newCustomerName,
+        phone: newCustomerPhone,
+        email: newCustomerEmail,
+        address: newCustomerAddress,
+      });
+
+      toast.success('Thêm khách hàng thành công');
+
+      // If addCustomer returned the created customer, use it to select and fill fields
+      if (created) {
+        handleCustomerChange(created.id);
+        setCustomerQuery(`${created.code} - ${created.name} (${created.phone || '-'})`);
+        setCustomerName(created.name);
+        setCustomerPhone(created.phone || '');
+      } else {
+        // Fallback: prefill query with expected display and fields
+        setCustomerQuery(`${newCode} - ${newCustomerName} (${newCustomerPhone || '-'})`);
+        setCustomerName(newCustomerName);
+        setCustomerPhone(newCustomerPhone);
+      }
+
+      setIsNewCustomerDialogOpen(false);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setNewCustomerEmail('');
+      setNewCustomerAddress('');
+    } catch (error: any) {
+      toast.error('Lỗi khi thêm khách hàng: ' + error.message);
     }
   };
 
@@ -122,23 +197,18 @@ const Sales: React.FC = () => {
     setNotes('');
   };
 
-  const addItem = () => {
-    if (!selectedProductId) {
-      toast.error('Vui lòng chọn sản phẩm');
-      return;
-    }
-
-    const product = products.find(p => p.id === selectedProductId);
+  const addItemById = (productId: string) => {
+    const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    const existingItem = items.find(i => i.productId === selectedProductId);
+    const existingItem = items.find(i => i.productId === productId);
     if (existingItem) {
       if (existingItem.quantity + 1 > product.stock) {
         toast.error('Số lượng vượt quá tồn kho');
         return;
       }
       setItems(items.map(i =>
-        i.productId === selectedProductId
+        i.productId === productId
           ? { ...i, quantity: i.quantity + 1, amount: (i.quantity + 1) * i.unitPrice }
           : i
       ));
@@ -160,6 +230,16 @@ const Sales: React.FC = () => {
     setSelectedProductId('');
     setProductQuery('');
     setShowProductList(false);
+    setProductPage(1);
+  };
+
+  const addItem = () => {
+    if (!selectedProductId) {
+      toast.error('Vui lòng chọn sản phẩm');
+      return;
+    }
+
+    addItemById(selectedProductId);
   };
 
   const updateItemQuantity = (productId: string, quantity: number) => {
@@ -279,6 +359,7 @@ const Sales: React.FC = () => {
                                 <select
                                   value={productPageSize}
                                   onChange={(e) => { setProductPageSize(Number(e.target.value)); setProductPage(1); }}
+                                  onMouseDown={(e) => e.preventDefault()}
                                   className="text-xs bg-transparent p-1"
                                 >
                                   <option value={5}>5 / trang</option>
@@ -295,12 +376,8 @@ const Sales: React.FC = () => {
                                   <button
                                     key={p.id}
                                     type="button"
-                                    onClick={() => {
-                                      setSelectedProductId(p.id);
-                                      setProductQuery(`${p.code} - ${p.name}`);
-                                      setShowProductList(false);
-                                      setProductPage(1);
-                                    }}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { addItemById(p.id); }}
                                     className="w-full text-left px-3 py-2 hover:bg-accent/60"
                                   >
                                     <div className="text-sm font-medium">{p.code} - {p.name} <span className="text-xs text-muted-foreground">(Còn: {p.stock})</span></div>
@@ -318,6 +395,7 @@ const Sales: React.FC = () => {
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => setProductPage(p => Math.max(1, p - 1))}
                                   disabled={productPage <= 1}
                                   className="p-1 rounded disabled:opacity-40"
@@ -326,6 +404,7 @@ const Sales: React.FC = () => {
                                 </button>
                                 <button
                                   type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => setProductPage(p => Math.min(totalPages, p + 1))}
                                   disabled={productPage >= totalPages}
                                   className="p-1 rounded disabled:opacity-40"
@@ -339,10 +418,6 @@ const Sales: React.FC = () => {
                       })()
                     )}
                   </div>
-                  <Button onClick={addItem} className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Thêm
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -370,7 +445,7 @@ const Sales: React.FC = () => {
                         <TableCell className="font-medium">{item.productCode}</TableCell>
                         <TableCell>{item.productName}</TableCell>
                         <TableCell className="text-right align-middle">
-                          <div className="flex flex-col items-end justify-center h-full">
+                          <div className="flex items-center justify-end h-full gap-3">
                             <Input
                               type="number"
                               value={item.unitPrice}
@@ -385,7 +460,7 @@ const Sales: React.FC = () => {
                               }}
                               className="w-28 text-right h-8"
                             />
-                            <div className="text-xs text-muted-foreground mt-1">{!isNaN(Number(item.unitPrice)) ? formatCurrency(Number(item.unitPrice)) : '-'}</div>
+                            <div className="text-sm text-muted-foreground whitespace-nowrap">{!isNaN(Number(item.unitPrice)) ? formatCurrency(Number(item.unitPrice)) : '-'}</div>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -450,19 +525,81 @@ const Sales: React.FC = () => {
               <CardContent className="space-y-4">
                 <div>
                   <Label className="input-label">Chọn khách hàng</Label>
-                  <Select value={selectedCustomerId} onValueChange={handleCustomerChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn khách hàng..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="walk-in">Khách lẻ / Khách mới</SelectItem>
-                      {customers.map(c => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.code} - {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="relative">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Tìm hoặc chọn khách hàng..."
+                        value={customerQuery}
+                        onChange={(e) => handleCustomerQueryChange(e.target.value)}
+                        onFocus={() => setShowCustomerList(true)}
+                        onBlur={() => setTimeout(() => setShowCustomerList(false), 150)}
+                        className="w-full"
+                      />
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          setNewCustomerName('');
+                          // If current query looks like phone, prefill it
+                          const digits = normalizePhone(customerQuery);
+                          if (digits.length >= 7) {
+                            setNewCustomerPhone(customerQuery.trim());
+                          } else {
+                            setNewCustomerPhone('');
+                          }
+                          setNewCustomerEmail('');
+                          setNewCustomerAddress('');
+                          setIsNewCustomerDialogOpen(true);
+                        }}
+                        title="Thêm khách hàng mới"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {showCustomerList && (
+                      <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-popover">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleCustomerChange('walk-in'); setCustomerQuery(''); setShowCustomerList(false); }}
+                          className="w-full text-left px-3 py-2 hover:bg-accent/60"
+                        >
+                          Khách lẻ / Khách mới
+                        </button>
+
+                        {customers
+                          .filter(c => {
+                            const q = customerQuery.trim().toLowerCase();
+                            if (!q) return true;
+                            return c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
+                          })
+                          .map(c => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { handleCustomerChange(c.id); setCustomerQuery(`${c.code} - ${c.name} (${c.phone || '-'})`); setShowCustomerList(false); }}
+                              className="w-full text-left px-3 py-2 hover:bg-accent/60"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="truncate">{c.code} - {c.name}</div>
+                                <div className="text-xs text-muted-foreground ml-2 whitespace-nowrap">{c.phone || '-'}</div>
+                              </div>
+                            </button>
+                          ))}
+
+                        {customers.filter(c => {
+                          const q = customerQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          return c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
+                        }).length === 0 && (
+                          <div className="p-3 text-sm text-muted-foreground">Không tìm thấy khách hàng</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label className="input-label">Tên khách hàng</Label>
@@ -627,6 +764,39 @@ const Sales: React.FC = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Customer Dialog */}
+      <Dialog open={isNewCustomerDialogOpen} onOpenChange={setIsNewCustomerDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Thêm khách hàng mới</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateCustomer} className="space-y-4">
+            <div>
+              <Label className="input-label">Tên khách hàng</Label>
+              <Input value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} placeholder="Tên khách" />
+            </div>
+            <div>
+              <Label className="input-label">Số điện thoại</Label>
+              <Input value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} placeholder="0901234567" />
+            </div>
+            <div>
+              <Label className="input-label">Email</Label>
+              <Input value={newCustomerEmail} onChange={(e) => setNewCustomerEmail(e.target.value)} placeholder="Email (tuỳ chọn)" />
+            </div>
+            <div>
+              <Label className="input-label">Địa chỉ</Label>
+              <Input value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} placeholder="Địa chỉ (tuỳ chọn)" />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setIsNewCustomerDialogOpen(false)}>Hủy</Button>
+              <Button type="submit">Thêm khách hàng</Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </MainLayout>

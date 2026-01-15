@@ -317,6 +317,7 @@ const Import: React.FC = () => {
                                 <select
                                   value={productPageSize}
                                   onChange={(e) => { setProductPageSize(Number(e.target.value)); setProductPage(1); }}
+                                  onMouseDown={(e) => e.preventDefault()}
                                   className="text-xs bg-transparent p-1"
                                 >
                                   <option value={5}>5 / trang</option>
@@ -350,6 +351,7 @@ const Import: React.FC = () => {
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => setProductPage(p => Math.max(1, p - 1))}
                                   disabled={productPage <= 1}
                                   className="p-1 rounded disabled:opacity-40"
@@ -358,6 +360,7 @@ const Import: React.FC = () => {
                                 </button>
                                 <button
                                   type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => setProductPage(p => Math.min(totalProductPages, p + 1))}
                                   disabled={productPage >= totalProductPages}
                                   className="p-1 rounded disabled:opacity-40"

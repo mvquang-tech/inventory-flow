@@ -17,7 +17,7 @@ interface InventoryContextType {
   addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => Promise<void>;
   updateSupplier: (id: string, supplier: Partial<Supplier>) => Promise<void>;
   deleteSupplier: (id: string) => Promise<void>;
-  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => Promise<void>;
+  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => Promise<Customer | undefined>;
   updateCustomer: (id: string, customer: Partial<Customer>) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   addImport: (importData: Omit<Import, 'id' | 'createdAt'>) => Promise<void>;
@@ -295,7 +295,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (data) {
       const newCustomer = { ...data, createdAt: new Date(data.created_at) };
       setCustomers(prev => [newCustomer, ...prev]);
+      return newCustomer;
     }
+    return undefined;
   };
 
   const updateCustomer = async (id: string, customer: Partial<Customer>) => {
