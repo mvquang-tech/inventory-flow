@@ -36,7 +36,7 @@ const Sidebar: React.FC = () => {
             <Package className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-bold text-lg">KhoHàng</h1>
+            <h1 className="font-bold text-lg">Kho Hàng</h1>
             <p className="text-xs text-sidebar-foreground/60">Quản lý kho thông minh</p>
           </div>
         </div>
