@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ShoppingCart, Calculator, CheckCircle, ScrollText, Download, Printer } from 'lucide-react';
+import { Plus, Trash2, ShoppingCart, Calculator, CheckCircle, ScrollText, Download, Printer, ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
 import InvoicePrint from '@/components/InvoicePrint';
@@ -48,6 +48,12 @@ const Sales: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
+
+  // Searchable product select states
+  const [productQuery, setProductQuery] = useState('');
+  const [showProductList, setShowProductList] = useState(false);
+  const [productPage, setProductPage] = useState(1);
+  const [productPageSize, setProductPageSize] = useState(10);
   const [printingInvoice, setPrintingInvoice] = useState<any>(null);
   const [posPrintingInvoice, setPosPrintingInvoice] = useState<any>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -152,6 +158,8 @@ const Sales: React.FC = () => {
       }]);
     }
     setSelectedProductId('');
+    setProductQuery('');
+    setShowProductList(false);
   };
 
   const updateItemQuantity = (productId: string, quantity: number) => {
@@ -240,18 +248,97 @@ const Sales: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="flex gap-4">
-                  <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Chọn sản phẩm..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.filter(p => p.stock > 0).map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.code} - {p.name} (Còn: {p.stock})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Searchable product select */}
+                  <div className="relative flex-1">
+                    <Input
+                      placeholder="Tìm sản phẩm (mã hoặc tên)..."
+                      value={productQuery}
+                      onChange={(e) => { setProductQuery(e.target.value); setShowProductList(true); setProductPage(1); }}
+                      onFocus={() => setShowProductList(true)}
+                      className="w-full"
+                      onBlur={() => setTimeout(() => setShowProductList(false), 150)}
+                    />
+
+                    {showProductList && (
+                      (() => {
+                        const filtered = products.filter(p => p.stock > 0).filter(p => {
+                          const q = productQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+                        });
+                        const total = filtered.length;
+                        const totalPages = Math.max(1, Math.ceil(total / productPageSize));
+                        if (productPage > totalPages) setProductPage(totalPages);
+                        const pageItems = filtered.slice((productPage - 1) * productPageSize, productPage * productPageSize);
+
+                        return (
+                          <div className="absolute z-20 mt-1 w-full max-h-72 overflow-hidden rounded-md border bg-popover">
+                            <div className="px-3 py-2 border-b flex items-center justify-between">
+                              <div className="text-sm text-muted-foreground">{total} kết quả</div>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={productPageSize}
+                                  onChange={(e) => { setProductPageSize(Number(e.target.value)); setProductPage(1); }}
+                                  className="text-xs bg-transparent p-1"
+                                >
+                                  <option value={5}>5 / trang</option>
+                                  <option value={10}>10 / trang</option>
+                                  <option value={20}>20 / trang</option>
+                                </select>
+                                <div className="text-xs text-muted-foreground">Trang {productPage}/{totalPages}</div>
+                              </div>
+                            </div>
+
+                            <div className="max-h-52 overflow-auto">
+                              {pageItems.length ? (
+                                pageItems.map(p => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedProductId(p.id);
+                                      setProductQuery(`${p.code} - ${p.name}`);
+                                      setShowProductList(false);
+                                      setProductPage(1);
+                                    }}
+                                    className="w-full text-left px-3 py-2 hover:bg-accent/60"
+                                  >
+                                    <div className="text-sm font-medium">{p.code} - {p.name} <span className="text-xs text-muted-foreground">(Còn: {p.stock})</span></div>
+                                    <div className="text-xs text-muted-foreground">Nhà cung cấp: {p.supplierName || '-'}</div>
+                                    <div className="text-xs text-muted-foreground">Giá bán: <span className="font-medium">{formatCurrency(p.sellingPrice)}</span></div>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-3 text-sm text-muted-foreground">Không tìm thấy sản phẩm</div>
+                              )}
+                            </div>
+
+                            <div className="px-3 py-2 border-t flex items-center justify-between">
+                              <div className="text-xs text-muted-foreground">Hiển thị {(productPage - 1) * productPageSize + 1} - {Math.min(productPage * productPageSize, total)} của {total}</div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setProductPage(p => Math.max(1, p - 1))}
+                                  disabled={productPage <= 1}
+                                  className="p-1 rounded disabled:opacity-40"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setProductPage(p => Math.min(totalPages, p + 1))}
+                                  disabled={productPage >= totalPages}
+                                  className="p-1 rounded disabled:opacity-40"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
                   <Button onClick={addItem} className="gap-2">
                     <Plus className="w-4 h-4" />
                     Thêm
@@ -282,7 +369,25 @@ const Sales: React.FC = () => {
                       <TableRow key={item.productId}>
                         <TableCell className="font-medium">{item.productCode}</TableCell>
                         <TableCell>{item.productName}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
+                        <TableCell className="text-right align-middle">
+                          <div className="flex flex-col items-end justify-center h-full">
+                            <Input
+                              type="number"
+                              value={item.unitPrice}
+                              onChange={(e) => {
+                                const newPrice = Number(e.target.value);
+                                if (isNaN(newPrice) || newPrice < 0) return;
+                                setItems(items.map(i =>
+                                  i.productId === item.productId
+                                    ? { ...i, unitPrice: newPrice, amount: i.quantity * newPrice - i.discount }
+                                    : i
+                                ));
+                              }}
+                              className="w-28 text-right h-8"
+                            />
+                            <div className="text-xs text-muted-foreground mt-1">{!isNaN(Number(item.unitPrice)) ? formatCurrency(Number(item.unitPrice)) : '-'}</div>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-2">
                             <Button

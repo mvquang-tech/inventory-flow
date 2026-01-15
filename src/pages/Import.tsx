@@ -1,4 +1,4 @@
-import { Plus, Search, Package, Calendar, Trash2, ShoppingCart, Eye, Edit2 } from 'lucide-react';
+import { Plus, Search, Package, Calendar, Trash2, ShoppingCart, Eye, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
 import { formatCurrency, formatDate, generateCode } from '@/utils/format';
@@ -64,6 +64,9 @@ const Import: React.FC = () => {
   // Searchable select states
   const [productQuery, setProductQuery] = useState('');
   const [showProductList, setShowProductList] = useState(false);
+  // Pagination for product list
+  const [productPage, setProductPage] = useState(1);
+  const [productPageSize, setProductPageSize] = useState(10);
 
   // Lọc theo từ ngày đến ngày và từ khóa
   const filteredImports = imports.filter(i => {
@@ -107,12 +110,21 @@ const Import: React.FC = () => {
       return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
     });
 
+  // Pagination calculations
+  const totalProductResults = filteredProductsForSelect.length;
+  const totalProductPages = Math.max(1, Math.ceil(totalProductResults / productPageSize));
+  // Ensure current page in range
+  if (productPage > totalProductPages) setProductPage(totalProductPages);
+  const paginatedProducts = filteredProductsForSelect.slice((productPage - 1) * productPageSize, productPage * productPageSize);
+
   const selectProduct = (product: Product) => {
     setCurrentProductId(product.id);
     setCurrentUnitPrice(product.importPrice || 0);
     // Hiển thị tên sản phẩm đã chọn trong input
     setProductQuery(`${product.code} - ${product.name}`);
     setShowProductList(false);
+    // Ensure we keep page in range
+    setProductPage(1);
   };
 
   const addItem = () => {
@@ -290,7 +302,7 @@ const Import: React.FC = () => {
                         <Input
                           placeholder={supplierId ? "Tìm sản phẩm (mã hoặc tên)..." : "Vui lòng chọn nhà cung cấp"}
                           value={productQuery}
-                          onChange={(e) => { setProductQuery(e.target.value); setShowProductList(true); }}
+                          onChange={(e) => { setProductQuery(e.target.value); setShowProductList(true); setProductPage(1); }}
                           onFocus={() => setShowProductList(true)}
                           disabled={!supplierId}
                           className="w-full"
@@ -298,24 +310,62 @@ const Import: React.FC = () => {
                         />
 
                         {showProductList && (
-                          <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-popover">
-                            {filteredProductsForSelect.length ? (
-                              filteredProductsForSelect.map(p => (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => {
-                                    selectProduct(p);
-                                  }}
-                                  className="w-full text-left px-3 py-2 hover:bg-accent/60"
+                          <div className="absolute z-20 mt-1 w-full max-h-72 overflow-hidden rounded-md border bg-popover">
+                            <div className="px-3 py-2 border-b flex items-center justify-between">
+                              <div className="text-sm text-muted-foreground">{totalProductResults} kết quả</div>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={productPageSize}
+                                  onChange={(e) => { setProductPageSize(Number(e.target.value)); setProductPage(1); }}
+                                  className="text-xs bg-transparent p-1"
                                 >
-                                  <div className="text-sm font-medium">{p.code} - {p.name}</div>
-                                  <div className="text-xs text-muted-foreground">{p.category} • {p.unit}</div>
+                                  <option value={5}>5 / trang</option>
+                                  <option value={10}>10 / trang</option>
+                                  <option value={20}>20 / trang</option>
+                                </select>
+                                <div className="text-xs text-muted-foreground">Trang {productPage}/{totalProductPages}</div>
+                              </div>
+                            </div>
+
+                            <div className="max-h-52 overflow-auto">
+                              {paginatedProducts.length ? (
+                                paginatedProducts.map(p => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => selectProduct(p)}
+                                    className="w-full text-left px-3 py-2 hover:bg-accent/60"
+                                  >
+                                    <div className="text-sm font-medium">{p.code} - {p.name}</div>
+                                    <div className="text-xs text-muted-foreground">{p.category} • {p.unit}</div>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-3 text-sm text-muted-foreground">Không tìm thấy sản phẩm</div>
+                              )}
+                            </div>
+
+                            <div className="px-3 py-2 border-t flex items-center justify-between">
+                              <div className="text-xs text-muted-foreground">Hiển thị {(productPage - 1) * productPageSize + 1} - {Math.min(productPage * productPageSize, totalProductResults)} của {totalProductResults}</div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setProductPage(p => Math.max(1, p - 1))}
+                                  disabled={productPage <= 1}
+                                  className="p-1 rounded disabled:opacity-40"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
                                 </button>
-                              ))
-                            ) : (
-                              <div className="p-3 text-sm text-muted-foreground">Không tìm thấy sản phẩm</div>
-                            )}
+                                <button
+                                  type="button"
+                                  onClick={() => setProductPage(p => Math.min(totalProductPages, p + 1))}
+                                  disabled={productPage >= totalProductPages}
+                                  className="p-1 rounded disabled:opacity-40"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
