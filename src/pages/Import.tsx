@@ -37,6 +37,9 @@ import { useState } from 'react';
 const Import: React.FC = () => {
   const { products, suppliers, imports, addImport, updateImport, deleteImport } = useInventory();
   const [searchTerm, setSearchTerm] = useState('');
+  // State cho lọc ngày
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -59,10 +62,23 @@ const Import: React.FC = () => {
   const [currentQuantity, setCurrentQuantity] = useState(1);
   const [currentUnitPrice, setCurrentUnitPrice] = useState(0);
 
-  const filteredImports = imports.filter(
-    i => i.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.supplierName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Lọc theo từ ngày đến ngày và từ khóa
+  const filteredImports = imports.filter(i => {
+    const matchSearch = i.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      i.supplierName.toLowerCase().includes(searchTerm.toLowerCase());
+    let matchFrom = true;
+    let matchTo = true;
+    if (fromDate) {
+      matchFrom = new Date(i.importDate) >= new Date(fromDate);
+    }
+    if (toDate) {
+      // Đảm bảo lấy hết ngày đến (so sánh đến cuối ngày)
+      const to = new Date(toDate);
+      to.setHours(23,59,59,999);
+      matchTo = new Date(i.importDate) <= to;
+    }
+    return matchSearch && matchFrom && matchTo;
+  });
 
   const handleSupplierChange = (newSupplierId: string) => {
     setSupplierId(newSupplierId);
@@ -396,17 +412,35 @@ const Import: React.FC = () => {
           </Card>
         </div>
 
-        {/* Search */}
+        {/* Search & Date Filter */}
         <Card>
           <CardContent className="pt-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Tìm kiếm theo sản phẩm hoặc nhà cung cấp..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="relative max-w-md w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Tìm kiếm theo sản phẩm hoặc nhà cung cấp..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="flex gap-2 items-center">
+                <Label className="text-xs">Từ ngày</Label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  className="w-36"
+                />
+                <Label className="text-xs">Đến ngày</Label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                  className="w-36"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
