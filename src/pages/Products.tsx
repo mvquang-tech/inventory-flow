@@ -38,6 +38,24 @@ const units = ['Cái', 'Hộp', 'Bộ', 'Kg', 'Lít', 'Mét'];
 
 const Products: React.FC = () => {
   const { products, suppliers, addProduct, updateProduct, deleteProduct } = useInventory();
+    // ...existing code...
+    // Hàm xử lý copy sản phẩm
+    const handleCopyProduct = async (product: Product) => {
+      // Tạo mã mới cho sản phẩm copy
+      const newCode = generateCode('SP', products.map(p => p.code));
+      const copyData = {
+        ...product,
+        id: undefined,
+        code: newCode,
+        name: product.name + ' (Copy)',
+      };
+      try {
+        await addProduct(copyData);
+        toast.success('Đã copy sản phẩm thành công');
+      } catch (error: any) {
+        toast.error('Lỗi khi copy: ' + error.message);
+      }
+    } 
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -331,6 +349,14 @@ const Products: React.FC = () => {
                           onClick={() => handleOpenDialog(product)}
                         >
                           <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleCopyProduct(product)}
+                          title="Copy sản phẩm"
+                        >
+                          <Plus className="w-4 h-4" />
                         </Button>
                         <Button
                           size="icon"
