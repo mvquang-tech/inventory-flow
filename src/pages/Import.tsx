@@ -61,6 +61,9 @@ const Import: React.FC = () => {
   const [currentProductId, setCurrentProductId] = useState('');
   const [currentQuantity, setCurrentQuantity] = useState(1);
   const [currentUnitPrice, setCurrentUnitPrice] = useState(0);
+  // Searchable select states
+  const [productQuery, setProductQuery] = useState('');
+  const [showProductList, setShowProductList] = useState(false);
 
   // Lọc theo từ ngày đến ngày và từ khóa
   const filteredImports = imports.filter(i => {
@@ -85,12 +88,31 @@ const Import: React.FC = () => {
     setItems([]); // Clear items if supplier changes
     setCurrentProductId('');
     setCurrentUnitPrice(0);
+    setProductQuery('');
+    setShowProductList(false);
   };
 
   const handleProductChange = (productId: string) => {
     setCurrentProductId(productId);
     const product = products.find(p => p.id === productId);
     setCurrentUnitPrice(product?.importPrice || 0);
+  };
+
+  // Filter products for searchable select
+  const filteredProductsForSelect = products
+    .filter(p => !supplierId || p.supplierId === supplierId)
+    .filter(p => {
+      const q = productQuery.trim().toLowerCase();
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+    });
+
+  const selectProduct = (product: Product) => {
+    setCurrentProductId(product.id);
+    setCurrentUnitPrice(product.importPrice || 0);
+    // Hiển thị tên sản phẩm đã chọn trong input
+    setProductQuery(`${product.code} - ${product.name}`);
+    setShowProductList(false);
   };
 
   const addItem = () => {
@@ -126,6 +148,8 @@ const Import: React.FC = () => {
     setCurrentProductId('');
     setCurrentQuantity(1);
     setCurrentUnitPrice(0);
+    setProductQuery('');
+    setShowProductList(false);
   };
 
   const removeItem = (index: number) => {
@@ -208,6 +232,8 @@ const Import: React.FC = () => {
     setCurrentProductId('');
     setCurrentQuantity(1);
     setCurrentUnitPrice(0);
+    setProductQuery('');
+    setShowProductList(false);
   };
 
   return (
@@ -259,24 +285,40 @@ const Import: React.FC = () => {
                     <div className="grid grid-cols-12 gap-3 items-end">
                       <div className="col-span-12 md:col-span-5">
                         <Label className="text-xs">Sản phẩm</Label>
-                        <Select
-                          value={currentProductId}
-                          onValueChange={handleProductChange}
+                        {/* Searchable product select */}
+                      <div className="relative">
+                        <Input
+                          placeholder={supplierId ? "Tìm sản phẩm (mã hoặc tên)..." : "Vui lòng chọn nhà cung cấp"}
+                          value={productQuery}
+                          onChange={(e) => { setProductQuery(e.target.value); setShowProductList(true); }}
+                          onFocus={() => setShowProductList(true)}
                           disabled={!supplierId}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={supplierId ? "Chọn sản phẩm" : "Vui lòng chọn nhà cung cấp"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products
-                              .filter(p => !supplierId || p.supplierId === supplierId)
-                              .map(p => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.code} - {p.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                          className="w-full"
+                          onBlur={() => setTimeout(() => setShowProductList(false), 150)}
+                        />
+
+                        {showProductList && (
+                          <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-popover">
+                            {filteredProductsForSelect.length ? (
+                              filteredProductsForSelect.map(p => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => {
+                                    selectProduct(p);
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-accent/60"
+                                >
+                                  <div className="text-sm font-medium">{p.code} - {p.name}</div>
+                                  <div className="text-xs text-muted-foreground">{p.category} • {p.unit}</div>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="p-3 text-sm text-muted-foreground">Không tìm thấy sản phẩm</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       </div>
                       <div className="col-span-4 md:col-span-2">
                         <Label className="text-xs">Số lượng</Label>
