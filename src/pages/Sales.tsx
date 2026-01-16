@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ShoppingCart, Calculator, CheckCircle, ScrollText, Download, Printer, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, ShoppingCart, Calculator, CheckCircle, ScrollText, Download, Printer, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { useInventory } from '@/contexts/InventoryContext';
 import InvoicePrint from '@/components/InvoicePrint';
@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -38,7 +39,7 @@ import { InvoiceItem } from '@/types/inventory';
 const paymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Thẻ tín dụng', 'Ví điện tử'];
 
 const Sales: React.FC = () => {
-  const { products, invoices, addInvoice, customers, addCustomer, settings } = useInventory();
+  const { products, invoices, addInvoice, customers, addCustomer, suppliers, settings } = useInventory();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -64,6 +65,14 @@ const Sales: React.FC = () => {
   const [showProductList, setShowProductList] = useState(false);
   const [productPage, setProductPage] = useState(1);
   const [productPageSize, setProductPageSize] = useState(10);
+
+  // Product modal (list) states
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'category' | 'supplier'>('category');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSupplierModal, setSelectedSupplierModal] = useState<string | null>(null);
+  const [modalProductQuery, setModalProductQuery] = useState('');
+
   const [printingInvoice, setPrintingInvoice] = useState<any>(null);
   const [posPrintingInvoice, setPosPrintingInvoice] = useState<any>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -330,14 +339,32 @@ const Sales: React.FC = () => {
                 <div className="flex gap-4">
                   {/* Searchable product select */}
                   <div className="relative flex-1">
-                    <Input
-                      placeholder="Tìm sản phẩm (mã hoặc tên)..."
-                      value={productQuery}
-                      onChange={(e) => { setProductQuery(e.target.value); setShowProductList(true); setProductPage(1); }}
-                      onFocus={() => setShowProductList(true)}
-                      className="w-full"
-                      onBlur={() => setTimeout(() => setShowProductList(false), 150)}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Tìm sản phẩm (mã hoặc tên)..."
+                        value={productQuery}
+                        onChange={(e) => { setProductQuery(e.target.value); setShowProductList(true); setProductPage(1); }}
+                        onFocus={() => setShowProductList(true)}
+                        className="w-full"
+                        onBlur={() => setTimeout(() => setShowProductList(false), 150)}
+                      />
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => { setIsProductModalOpen(true); setModalTab('category'); }}
+                          title="Chọn từ danh sách"
+                        >
+                          <List className="w-4 h-4" />
+                        </Button>
+
+                        <Button onClick={addItem} className="gap-2 hidden sm:flex">
+                          <Plus className="w-4 h-4" />
+                          Thêm
+                        </Button>
+                      </div>
+                    </div>
 
                     {showProductList && (
                       (() => {
@@ -767,38 +794,130 @@ const Sales: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* New Customer Dialog */}
-      <Dialog open={isNewCustomerDialogOpen} onOpenChange={setIsNewCustomerDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      {/* Product List Dialog */}
+      <Dialog open={isProductModalOpen} onOpenChange={setIsProductModalOpen}>
+        <DialogContent className="max-w-4xl min-h-[500px] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Thêm khách hàng mới</DialogTitle>
+            <DialogTitle>Chọn sản phẩm</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleCreateCustomer} className="space-y-4">
-            <div>
-              <Label className="input-label">Tên khách hàng</Label>
-              <Input value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} placeholder="Tên khách" />
-            </div>
-            <div>
-              <Label className="input-label">Số điện thoại</Label>
-              <Input value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} placeholder="0901234567" />
-            </div>
-            <div>
-              <Label className="input-label">Email</Label>
-              <Input value={newCustomerEmail} onChange={(e) => setNewCustomerEmail(e.target.value)} placeholder="Email (tuỳ chọn)" />
-            </div>
-            <div>
-              <Label className="input-label">Địa chỉ</Label>
-              <Input value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} placeholder="Địa chỉ (tuỳ chọn)" />
-            </div>
+          <Tabs defaultValue={modalTab} onValueChange={(v) => setModalTab(v as 'category' | 'supplier')}>
+            {/* Make tab list sticky within the scrollable area */}
+            <div className="flex-1 overflow-auto">
+              <div className="sticky top-0 z-10 bg-popover border-b">
+                <TabsList className="bg-transparent">
+                  <TabsTrigger value="category">Danh mục</TabsTrigger>
+                  <TabsTrigger value="supplier">Nhà cung cấp</TabsTrigger>
+                </TabsList>
+              </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIsNewCustomerDialogOpen(false)}>Hủy</Button>
-              <Button type="submit">Thêm khách hàng</Button>
+              <TabsContent value="category">
+                <div className="flex gap-4">
+                  <div className="w-48">
+                    <div className="flex flex-col gap-2">
+                      {Array.from(new Set(products.map(p => p.category).filter(Boolean))).map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`text-left px-3 py-2 rounded ${selectedCategory === cat ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/30'}`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Tìm sản phẩm..."
+                      value={modalProductQuery}
+                      onChange={(e) => setModalProductQuery(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="max-h-96 overflow-auto border rounded-md">
+                      {products.filter(p => p.stock > 0)
+                        .filter(p => !selectedCategory || p.category === selectedCategory)
+                        .filter(p => {
+                          const q = modalProductQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+                        })
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { addItemById(p.id); setIsProductModalOpen(false); }}
+                            className="w-full text-left px-3 py-2 hover:bg-accent/60 flex items-center justify-between"
+                          >
+                            <div>{p.code} - {p.name}</div>
+                            <div className="text-xs text-muted-foreground">{formatCurrency(p.sellingPrice)}</div>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="supplier">
+                <div className="flex gap-4">
+                  <div className="w-48">
+                    <div className="flex flex-col gap-2">
+                      {suppliers.map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSelectedSupplierModal(s.id)}
+                          className={`text-left px-3 py-2 rounded ${selectedSupplierModal === s.id ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/30'}`}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Tìm sản phẩm..."
+                      value={modalProductQuery}
+                      onChange={(e) => setModalProductQuery(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="max-h-96 overflow-auto border rounded-md">
+                      {products.filter(p => p.stock > 0)
+                        .filter(p => !selectedSupplierModal || p.supplierId === selectedSupplierModal)
+                        .filter(p => {
+                          const q = modalProductQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+                        })
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { addItemById(p.id); setIsProductModalOpen(false); }}
+                            className="w-full text-left px-3 py-2 hover:bg-accent/60 flex items-center justify-between"
+                          >
+                            <div>{p.code} - {p.name}</div>
+                            <div className="text-xs text-muted-foreground">{formatCurrency(p.sellingPrice)}</div>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
             </div>
-          </form>
+          </Tabs>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsProductModalOpen(false)}>Đóng</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* New Customer Dialog */}
     </MainLayout>
   );
 };
