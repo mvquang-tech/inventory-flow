@@ -152,6 +152,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         createdAt: new Date(inv.created_at),
         items: inv.invoice_items.map((item: any) => ({
           ...item,
+          productId: item.product_id || item.productId,
           productCode: item.product_code,
           productName: item.product_name,
           unitPrice: item.unit_price
@@ -564,6 +565,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         createdAt: new Date(invData.created_at),
         items: itemsData.map((item: any) => ({
           ...item,
+          productId: item.product_id || item.productId,
           productCode: item.product_code,
           productName: item.product_name,
           unitPrice: item.unit_price

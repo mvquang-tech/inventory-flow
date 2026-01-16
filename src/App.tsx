@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { InventoryProvider } from "./contexts/InventoryContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import Products from "./pages/Products";
 import Import from "./pages/Import";
@@ -14,6 +15,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import SupplierHistory from "./pages/SupplierHistory";
 import Customers from "./pages/Customers";
+import ProductDetails from "./pages/ProductDetails";
 import CustomerHistory from "./pages/CustomerHistory";
 import NotFound from "./pages/NotFound";
 
@@ -21,14 +23,16 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <InventoryProvider>
-        <Toaster />
-        <Sonner />
+    <ErrorBoundary>
+      <TooltipProvider>
+        <InventoryProvider>
+          <Toaster />
+          <Sonner />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/products/:id" element={<ProductDetails />} />
             <Route path="/import" element={<Import />} />
             <Route path="/sales" element={<Sales />} />
             <Route path="/invoices" element={<Invoices />} />
@@ -42,7 +46,8 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </InventoryProvider>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ErrorBoundary>
   </QueryClientProvider>
 );
 

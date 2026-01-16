@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Package } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
+import { Link } from 'react-router-dom';
 import { useInventory } from '@/contexts/InventoryContext';
-import { formatCurrency, formatNumber, generateCode } from '@/utils/format';
+import { formatCurrency, formatNumber, formatDateTime, generateCode } from '@/utils/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +38,7 @@ const categories = ['Điện tử', 'Điện thoại', 'Phụ kiện', 'Gia dụ
 const units = ['Cái', 'Hộp', 'Bộ', 'Kg', 'Lít', 'Mét'];
 
 const Products: React.FC = () => {
-  const { products, suppliers, addProduct, updateProduct, deleteProduct } = useInventory();
+  const { products, suppliers, imports, invoices, addProduct, updateProduct, deleteProduct } = useInventory();
     // ...existing code...
     // Hàm xử lý copy sản phẩm
     const handleCopyProduct = async (product: Product) => {
@@ -57,6 +58,19 @@ const Products: React.FC = () => {
       }
     } 
   const [searchTerm, setSearchTerm] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    code: '',
+    name: '',
+    category: '',
+    supplier: '',
+  });
+  const handleColumnFilterChange = (field: string, value: string) => {
+    setColumnFilters(prev => ({ ...prev, [field]: value }));
+  };
+  const clearFilters = () => {
+    setSearchTerm('');
+    setColumnFilters({ code: '', name: '', category: '', supplier: '' });
+  };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
@@ -71,10 +85,42 @@ const Products: React.FC = () => {
     supplierId: '',
   });
 
-  const filteredProducts = products.filter(
-    p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => {
+    const term = searchTerm.trim().toLowerCase();
+    if (term && !(p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term))) return false;
+    if (columnFilters.code && !p.code.toLowerCase().includes(columnFilters.code.toLowerCase())) return false;
+    if (columnFilters.name && !p.name.toLowerCase().includes(columnFilters.name.toLowerCase())) return false;
+    if (columnFilters.category && columnFilters.category !== 'all' && !p.category.toLowerCase().includes(columnFilters.category.toLowerCase())) return false;
+    if (columnFilters.supplier && columnFilters.supplier !== 'all') {
+      const supplierName = (p.supplierName || '').toLowerCase();
+      if (!supplierName.includes(columnFilters.supplier.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  // Aggregate import and sales stats per product
+  const importStats = imports.reduce((acc: Record<string, { qty: number; amount: number }>, imp: any) => {
+    imp.items.forEach((it: any) => {
+      const id = it.productId;
+      if (!id) return;
+      if (!acc[id]) acc[id] = { qty: 0, amount: 0 };
+      acc[id].qty += Number(it.quantity || 0);
+      acc[id].amount += Number(it.amount || 0);
+    });
+    return acc;
+  }, {});
+
+  const salesStats = invoices.reduce((acc: Record<string, { qty: number; amount: number }>, inv: any) => {
+    inv.items.forEach((it: any) => {
+      const id = it.productId;
+      if (!id) return;
+      if (!acc[id]) acc[id] = { qty: 0, amount: 0 };
+      acc[id].qty += Number(it.quantity || 0);
+      acc[id].amount += Number(it.amount || 0);
+    });
+    return acc;
+  }, {});
+
 
   const resetForm = () => {
     const newCode = generateCode('SP', products.map(p => p.code));
@@ -284,14 +330,20 @@ const Products: React.FC = () => {
         {/* Search */}
         <Card>
           <CardContent className="pt-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Tìm kiếm theo tên hoặc mã sản phẩm..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex items-center gap-3">
+              <div className="relative max-w-md flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Tìm kiếm theo tên hoặc mã sản phẩm..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button variant="outline" onClick={clearFilters} className="gap-2">
+                <X className="w-4 h-4" />
+                Xóa bộ lọc
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -307,12 +359,52 @@ const Products: React.FC = () => {
                   <TableHead>Danh mục</TableHead>
                   <TableHead>Nhà cung cấp</TableHead>
                   <TableHead className="text-right">Giá nhập</TableHead>
-                  <TableHead className="text-right">Giá bán</TableHead>
-                  <TableHead className="text-center">Tồn kho</TableHead>
+                  <TableHead className="text-right">Giá bán</TableHead>                  <TableHead className="text-right">Nhập</TableHead>
+                  <TableHead className="text-right">Bán</TableHead>                  <TableHead className="text-center">Tồn kho</TableHead>
                   <TableHead className="text-center">Trạng thái</TableHead>
+                  <TableHead>Ngày tạo</TableHead>
                   <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
+              <TableRow className="table-filters">
+                <TableCell>
+                  <Input value={columnFilters.code} onChange={(e) => handleColumnFilterChange('code', e.target.value)} placeholder="Tìm mã..." className="w-full" />
+                </TableCell>
+                <TableCell>
+                  <Input value={columnFilters.name} onChange={(e) => handleColumnFilterChange('name', e.target.value)} placeholder="Tìm tên..." className="w-full" />
+                </TableCell>
+                <TableCell>
+                  <Select value={columnFilters.category} onValueChange={(v) => handleColumnFilterChange('category', v)}>
+                    <SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả</SelectItem>
+                      {categories.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Select value={columnFilters.supplier} onValueChange={(v) => handleColumnFilterChange('supplier', v)}>
+                    <SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả</SelectItem>
+                      <SelectItem value="none">Không có</SelectItem>
+                      {suppliers.map(s => (
+                        <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell />
+                <TableCell />
+                <TableCell />
+                <TableCell />
+                <TableCell />
+                <TableCell />
+                <TableCell />
+                <TableCell />
+              </TableRow>
               <TableBody>
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id} className="hover:bg-muted/50">
@@ -322,7 +414,9 @@ const Products: React.FC = () => {
                         <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
                           <Package className="w-4 h-4 text-primary" />
                         </div>
-                        {product.name}
+                        <Link to={`/products/${product.id}`} className="text-primary hover:underline">
+                          {product.name}
+                        </Link>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -333,14 +427,26 @@ const Products: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(product.importPrice)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(product.sellingPrice)}</TableCell>
-                    <TableCell className="text-center font-medium">{formatNumber(product.stock)}</TableCell>
+                    {/* Import totals */}
+                    <TableCell className="text-right">
+                      <div className="text-sm font-medium">{formatNumber(importStats[product.id]?.qty || 0)}</div>
+                      <div className="text-xs text-muted-foreground">{formatCurrency(importStats[product.id]?.amount || 0)}</div>
+                    </TableCell>
+                    {/* Sales totals */}
+                    <TableCell className="text-right">
+                      <div className="text-sm font-medium">{formatNumber(salesStats[product.id]?.qty || 0)}</div>
+                      <div className="text-xs text-muted-foreground">{formatCurrency(salesStats[product.id]?.amount || 0)}</div>
+                    </TableCell>
+                    {/* Computed stock = total imported - total sold */}
+                    <TableCell className="text-center font-medium">{formatNumber((importStats[product.id]?.qty || 0) - (salesStats[product.id]?.qty || 0))}</TableCell>
                     <TableCell className="text-center">
-                      {product.stock < product.minStock ? (
+                      {((importStats[product.id]?.qty || 0) - (salesStats[product.id]?.qty || 0)) < product.minStock ? (
                         <Badge variant="destructive">Sắp hết</Badge>
                       ) : (
                         <Badge variant="default" className="bg-success text-success-foreground">Còn hàng</Badge>
                       )}
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(product.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
@@ -367,12 +473,10 @@ const Products: React.FC = () => {
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    </TableCell>                  </TableRow>                ))}
                 {filteredProducts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       Không tìm thấy sản phẩm nào
                     </TableCell>
                   </TableRow>
